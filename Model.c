@@ -4,6 +4,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "Calculator.h" // Include the header file for function declarations
+
 // Function declarations following our grammar:
 double parseExpression(const char **s);  // handles '+' and '-'
 double parseTerm(const char **s);        // handles '*' and '/' and implicit multiplication
@@ -11,6 +13,7 @@ double parseFactor(const char **s);      // handles '^' (right associative)
 double parsePrimary(const char **s);     // handles numbers, parentheses, and unary +/-
 char* calculate(const char *input);      // main calculation function
 
+const char *errorMsg = NULL; // Initialize error message pointer
 
 // int main(void) {
 //     // Test input: "2^(-3)(-3)" should be interpreted as (2^(-3)) * (-3) = -0.375.
@@ -53,7 +56,10 @@ double parseTerm(const char **s) {
             if (factor == 0) {
                 // Return an error message for division by zero
                 printf("Error: Division by zero\n");
-                exit(EXIT_FAILURE);
+                
+                errorMsg = "Division by zero"; // Set the error message
+
+                return 0; // or handle it as needed
             }
             value /= factor;
         }
@@ -110,6 +116,8 @@ double parsePrimary(const char **s) {
             (*s)++; // consume ')'
         } else {
             printf("Error: missing closing parenthesis\n");
+            errorMsg = "Missing parenthesis"; // Set the error message
+            return 0; // or handle it as needed
             exit(EXIT_FAILURE);
         }
         return value;
@@ -121,6 +129,8 @@ double parsePrimary(const char **s) {
     if (*s == end) {
         // Nothing was parsed, so it's an error.
         printf("Error: expected a number but found '%c'\n", **s);
+        errorMsg = "Expected a number"; // Set the error message
+        return 0; // or handle it as needed
         exit(EXIT_FAILURE);
     }
     *s = end;
@@ -129,6 +139,9 @@ double parsePrimary(const char **s) {
 
 // The main calculation function:
 char* calculate(const char *input) {
+    
+    errorMsg = NULL; // Reset error message pointer
+
     const char *s = input;
     char *result = (char *)malloc(256); // Allocate memory for the result string
     if (!result) {
@@ -139,5 +152,9 @@ char* calculate(const char *input) {
     // Try to parse the expression
     double value = parseExpression(&s);
     snprintf(result, 256, "%f", value);
+    if (errorMsg != NULL) {
+       strcpy(result, errorMsg); // Copy the error message to the result
+    }
+    
     return result;
 }

@@ -1,1 +1,1 @@
-{ 73, 73, 73, 255}
+void error(char *message)

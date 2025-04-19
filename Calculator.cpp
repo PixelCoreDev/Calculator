@@ -2,8 +2,14 @@
 #include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <vector>
+
+std::string errorMessage = "";
 extern "C" {
     #include "Model.c"
+
+    // void error(char *message){
+    //     errorMessage = message;
+    // }  
 }
 
 struct Button {
@@ -29,7 +35,7 @@ std::string resultText = "0";
 bool running = true;
 int width = 512;
 int height = 768;
-std::string errorMessage = "";
+
 
 // Function prototypes
 void renderText(Button& button);
@@ -274,6 +280,4 @@ void renderResultText(const std::string& result) {
     }
 }
 
-void error(char *message){
-    errorMessage = message;
-}
+
