@@ -2,14 +2,8 @@
 #include <SDL2/SDL_ttf.h>
 #include <iostream>
 #include <vector>
-
-std::string errorMessage = "";
 extern "C" {
     #include "Model.c"
-
-    // void error(char *message){
-    //     errorMessage = message;
-    // }  
 }
 
 struct Button {
@@ -35,7 +29,6 @@ std::string resultText = "0";
 bool running = true;
 int width = 512;
 int height = 768;
-
 
 // Function prototypes
 void renderText(Button& button);
@@ -106,7 +99,7 @@ int main(int argc, char* argv[]) {
         "7", "8", "9", "*",
         "4", "5", "6", "+",
         "1", "2", "3", "-",
-        "0", "⌫", ",", "="
+        "0", "⌫", ".", "="
     };
 
     
@@ -176,14 +169,7 @@ void renderButton(std::vector<Button>& buttons) {
             // Handle "just pressed" logic
             if (isMousePressed && !wasMousePressed) {
                 if (button.text == "=") {
-                    std::string txt = calculate(buttons[0].text.c_str()); // Call the calculate function from Model.c
-                    if (errorMessage != "") {
-                        resultText = errorMessage;
-                        errorMessage = "";
-                    } else {
-                        resultText = txt;
-                    }
-                    
+                    resultText = calculate(buttons[0].text.c_str()); // Call the calculate function from Model.c
                     
                 } else if (button.text == "⌫") {
                     // Handle delete logic
@@ -279,5 +265,4 @@ void renderResultText(const std::string& result) {
         SDL_DestroyTexture(textTexture);
     }
 }
-
 
