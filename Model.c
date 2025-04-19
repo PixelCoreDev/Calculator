@@ -7,6 +7,7 @@
 typedef long long ssize_t;
 #define _SSIZE_T_DEFINED
 #endif
+
 // Custom implementation for getline for non-POSIX systems
 ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     if (lineptr == NULL || n == NULL || 
@@ -47,21 +48,29 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
 
 // Function prototype
 char* input(); 
-char* errorCheck(char *array);
-int calculate();
+char errorCheck(char *array);
+//double calculate(char *array); not used now
 
 int main(){
+
+    enum bool{true = 1 , false = 0};
+
     // Call the input function to read a term from the user
     char *array = input();
 
+    if(array == NULL){
+        free(array);
+        return 1; // Exit if there is an error in the input
+    }
+    if(errorCheck(array) == false){
+        free(array);
+        return 1; // Exit if there is an error in the input
+    }
 
     printf("Array contents in main:\n");
     for (size_t i = 0; i < strlen(array); i++) {
         printf("%c ", array[i]);
     }
-
-    errorCheck(array);
-
    
     
     
@@ -123,51 +132,56 @@ char* input(){
     
     return array;
 }
-char* errorCheck(char *array){
+char errorCheck(char *array){
     
+    enum bool{true = 1 , false = 0};
 
-    int arithmetic = 0;
-    int balance = 0;
-    char inParanthesis = 0;
+    int arithmeticRepeating = false; // = 0
+    int balance = true; // = 1
+    char inParanthesis = true; // = 1
 
     for (size_t i = 0; i < strlen(array); i++) {
         switch (array[i]){
         case '(':
-            balance++;
-            inParanthesis = 1;
+            balance++; // Increment the balance when we encounter an opening parenthesis
+            inParanthesis = false; // Set to false when we encounter an opening parenthesis to indicate that we are inside parentheses
             break;
         case ')':
-            balance--;
+            balance--; // Decrement the balance when we encounter a closing parenthesis
             break;
         
         case '*':   
         case '/':
         case '^':
         case ',':
-            arithmetic++;
+            arithmeticRepeating++; // Increment the arithmeticRepeating flag when we encounter an arithmetic operator
             break;
         default:
-            inParanthesis = 0;
-            arithmetic = 0;
-        }
-        if (arithmetic > 1) {
-            printf("Error: Multiple arithmetic operators in a row\n");
-            return NULL;
-        }
-        if (inParanthesis > 1) {
-            printf("Error: Empty Paranthesis\n");
-            return NULL;
+            inParanthesis = true; // Set to true when we encounter a non-operator character to indicate that something is inside parentheses
+            arithmeticRepeating = false; // Reset the arithmeticRepeating flag when we encounter a non-operator character
         }
 
+        // Check for repeated arithmetic operators
+        if (arithmeticRepeating != false) {
+            printf("Error: Multiple arithmetic operators in a row\n");
+            return 0;
+        }
+        
     }
+    // Check for empty parentheses
+    if (inParanthesis != true) {
+        printf("Error: Empty Paranthesis\n");
+        return 0;
+    }
+    
     // Check for paretheses balance
-    if (balance != 0) {
+    if (balance != true) {
         printf("Error: Unmatched parentheses\n");
-        return NULL;
+        return 0;
     }
 
     
-        return array;
+        return 1;
 
     
 }
