@@ -12,15 +12,15 @@ double parsePrimary(const char **s);     // handles numbers, parentheses, and un
 char* calculate(const char *input);      // main calculation function
 
 
-int main(void) {
-    // Test input: "2^(-3)(-3)" should be interpreted as (2^(-3)) * (-3) = -0.375.
-    const char *input = "2^(-3)(-3)/0"; 
-    char *result = calculate(input);
-    printf("Result: %s\n", result);
-    printf("Test");
-    free(result); // Free the dynamically allocated result
-    return 0;
-}
+// int main(void) {
+//     // Test input: "2^(-3)(-3)" should be interpreted as (2^(-3)) * (-3) = -0.375.
+//     const char *input = "2^(-3)(-3)/0"; 
+//     char *result = calculate(input);
+//     printf("Result: %s\n", result);
+//     printf("Test");
+//     free(result); // Free the dynamically allocated result
+//     return 0;
+// }
 
 // Expression ::= Term { ('+' | '-') Term }
 double parseExpression(const char **s) {
