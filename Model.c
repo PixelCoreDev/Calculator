@@ -17,6 +17,7 @@ int main(void) {
     const char *input = "2^(-3)(-3)/0"; 
     char *result = calculate(input);
     printf("Result: %s\n", result);
+    printf("Test");
     free(result); // Free the dynamically allocated result
     return 0;
 }
@@ -131,23 +132,12 @@ char* calculate(const char *input) {
     const char *s = input;
     char *result = (char *)malloc(256); // Allocate memory for the result string
     if (!result) {
-        snprintf(result, 256, "Error: Memory allocation failed");
-        return result;
+        printf("Error: Memory allocation failed\n");
+        exit(EXIT_FAILURE);
     }
 
-    // Try parsing the expression
-    double value = 0.0; // Initialize value
-    char *errorMessage = NULL; // Pointer for any error message
-
-    value = parseExpression(&s);
-
-    // Check for any remaining unexpected characters
-    if (*s != '\0') {
-        snprintf(result, 256, "Error: Unexpected character '%c'", *s);
-        return result;
-    }
-
-    // If no errors, format the result value
+    // Try to parse the expression
+    double value = parseExpression(&s);
     snprintf(result, 256, "%f", value);
     return result;
 }
