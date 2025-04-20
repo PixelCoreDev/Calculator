@@ -1,268 +1,286 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL2_gfxPrimitives.h> // For rounded box drawing
 #include <iostream>
 #include <vector>
+
 extern "C" {
-    #include "Model.c"
+    #include "Model.c" // Logic for the calculator
 }
 
+enum class ButtonType { Number, Operator, Function, Equal };
+
 struct Button {
-    SDL_Rect rect;
-    SDL_Color color;
-    SDL_Color colorHighlight;
-    SDL_Color textColor;
-    std::string text;
+    SDL_Rect rect;            // The position and size of the button
+    SDL_Color color;          // The color of the button
+    SDL_Color highlightColor; // The color when the button is hovered
+    SDL_Color textColor;      // The color of the button text
+    std::string text;         // The text displayed on the button
+    ButtonType type;          // The type of button (Number, Operator, etc.)
 };
 
-// SDL
+// SDL Window and Renderer
 SDL_Window* window = nullptr;
 SDL_Renderer* renderer = nullptr;
 
-// Fonts
+// Font objects for text rendering
 TTF_Font* font = nullptr;
 TTF_Font* smallFont = nullptr;
 TTF_Font* bigFont = nullptr;
 
-// Global variables
-bool wasMousePressed = false; 
-std::string resultText = "0";
-bool running = true;
-int width = 512;
-int height = 768;
+// Global state variables
+bool wasMousePressed = false;  // Tracks the state of mouse clicks
+std::string resultText = "0";  // The result displayed on the screen
+bool running = true;           // Flag to keep the main loop running
+int width = 512;               // Window width
+int height = 768;              // Window height
 
-// Function prototypes
+// Function declarations
 void renderText(Button& button);
-void renderButton(std::vector<Button>& buttons);
-void renderResultText(const std::string& result);
-void renderCalculationText(Button& button);
+void renderButtons(std::vector<Button>& buttons);
+void renderResult(const std::string& input, const std::string& result);
 
 int main(int argc, char* argv[]) {
-    #pragma region InitializeSystems
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        std::cerr << "SDL couldn't be Initialized! SDL_Error: " << SDL_GetError() << std::endl;
+        std::cerr << "SDL Error: " << SDL_GetError() << std::endl;
         return 1;
     }
-    // create window and renderer
-    window = SDL_CreateWindow("Calculator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
-    if (!window) {
-        std::cerr << "Window could't be created! SDL_Error: " << SDL_GetError() << std::endl;
-        SDL_Quit();
-        return 1;
-    }
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (!renderer) {
-        std::cerr << "Renderer couldn't be created! SDL_Error: " << SDL_GetError() << std::endl;
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-    
-    // Load TTF
+
+    // Initialize SDL_ttf
     if (TTF_Init() == -1) {
-        std::cerr << "Failed to initialize SDL_ttf: " << TTF_GetError() << std::endl;
+        std::cerr << "TTF Error: " << TTF_GetError() << std::endl;
         return 1;
     }
-    // Load font
-    font = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 32); // 32 is the font size
-    smallFont = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 24); // 24 is the font size for smaller text
-    bigFont = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 48); // 48 is the font size for larger text
-    if (!font) {
-        std::cerr << "Failed to load font: " << TTF_GetError() << std::endl;
+
+    // Create the window
+    window = SDL_CreateWindow("Calculator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+    // Load fonts
+    font = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 28);
+    smallFont = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 20);
+    bigFont = TTF_OpenFont("Graphics/Arial Unicode MS Regular.ttf", 36);
+
+    // Check if fonts loaded successfully
+    if (!font || !smallFont || !bigFont) {
+        std::cerr << "Font loading error: " << TTF_GetError() << std::endl;
         return 1;
     }
-    if (!smallFont) {
-        std::cerr << "Failed to load smallFont: " << TTF_GetError() << std::endl;
-        return 1;
+
+    // Set the window icon
+    SDL_Surface* icon = SDL_LoadBMP("Graphics/CalculatorIcon.bmp");
+    if (icon) {
+        SDL_SetWindowIcon(window, icon);
+        SDL_FreeSurface(icon);
     }
-    if (!bigFont) {
-        std::cerr << "Failed to load bigFont: " << TTF_GetError() << std::endl;
-        return 1;
-    }
-    #pragma endregion
-    
-    #pragma region CreateLayout
-    //Create Layout
-    
-    // Set Colors
+
+    // Define the colors used in the UI
+    SDL_Color bgColor = { 9, 10, 20, 255 };
+    SDL_Color numColor = { 32, 46, 55, 255 };
+    SDL_Color opColor = { 190, 119, 43, 255 };
+    SDL_Color fnColor = { 165, 48, 48, 255 };
+    SDL_Color eqColor = { 117, 167, 67, 255 };
     SDL_Color textColor = { 255, 255, 255, 255 };
-    SDL_Color buttonColor = { 50, 50, 50, 255 };
-    SDL_Color buttonColorHighlight = { 73, 73, 73, 255 };
-    SDL_Color bgColor = { 32, 32, 32, 255 };
+    SDL_Color highlightColor = { 73, 73, 73, 255 };
 
-    // Set Button Dimensions
-    const int rows = 6;
-    const int cols = 4;
+    // Button layout settings
+    const int buttonRows = 6;
+    const int buttonCols = 4;
+    const int displayHeight = (height / buttonRows) - 10;
+    const int buttonWidth = (width / buttonCols) - 10;
+    const int buttonHeight = (height / buttonRows) - 10;
 
+    // Define the button labels
     std::vector<std::string> labels = {
-        "(", ")", "^", "/",
+        "^", "(", ")", "/",
         "7", "8", "9", "*",
-        "4", "5", "6", "+",
-        "1", "2", "3", "-",
-        "0", "⌫", ".", "="
+        "4", "5", "6", "-",
+        "1", "2", "3", "+",
+        "0", ".", "⌫", "="
     };
 
-    
     std::vector<Button> buttons;
-    // Create TopBar
-    buttons.push_back({{ 0, 0, width, height/rows}, bgColor, bgColor, textColor, "" });
-    // Create Buttons
-    for (int j = 0; j < 5; j++)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            buttons.push_back({{ 
-                (width/cols) * i,
-                (height/rows) * (j + 1),
-                width/cols, height/rows},
-                buttonColor,
-                buttonColorHighlight,
-                textColor, labels[(j * 4) + i] 
-            });
-        }
-    }
-    #pragma endregion
 
+    // Add a blank button at the top for result display
+    buttons.push_back({
+        { 0, 0, width, displayHeight },
+        bgColor, bgColor, textColor,
+        "", ButtonType::Function
+    });
+
+    // Create the calculator buttons
+    for (int i = 0; i < labels.size(); ++i) {
+        int row = i / buttonCols;
+        int col = i % buttonCols;
+
+        std::string label = labels[i];
+        ButtonType type = ButtonType::Number;
+
+        // Define button types based on label
+        if (label == "=") type = ButtonType::Equal;
+        else if (label == "AC" || label == "⌫") type = ButtonType::Function;
+        else if (label == "+" || label == "-" || label == "*" || label == "/" || label == "(" || label == ")" || label == "^") type = ButtonType::Operator;
+        else if (!isdigit(label[0]) && label != ".") type = ButtonType::Function;
+
+        // Define button color based on type
+        SDL_Color color = numColor;
+        if (type == ButtonType::Operator) color = opColor;
+        else if (type == ButtonType::Function) color = fnColor;
+        else if (type == ButtonType::Equal) color = eqColor;
+
+        // Add the button to the list
+        buttons.push_back({
+            {
+                col * buttonWidth + (8 * (col + 1)),
+                displayHeight + row * buttonHeight + (8 * (row + 1)),
+                buttonWidth,
+                buttonHeight
+            },
+            color,
+            highlightColor,
+            textColor,
+            label,
+            type
+        });
+    }
+
+    // Main game loop
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                running = false; // Exit when the window is closed
-                break;
+            if (event.type == SDL_QUIT)
+                running = false;
+        }
+
+        // Handle mouse events
+        int mx, my;
+        Uint32 mouseState = SDL_GetMouseState(&mx, &my);
+        bool isMousePressed = mouseState & SDL_BUTTON(SDL_BUTTON_LEFT);
+
+        // Check for button presses
+        for (Button& button : buttons) {
+            if (button.type == ButtonType::Function && &button == &buttons[0]) continue;
+
+            if (mx >= button.rect.x && mx <= button.rect.x + button.rect.w &&
+                my >= button.rect.y && my <= button.rect.y + button.rect.h) {
+                if (isMousePressed && !wasMousePressed) {
+                    std::string& input = buttons[0].text;
+                    // Handle special button presses
+                    if (button.text == "⌫" && !input.empty()) {
+                        input.pop_back();
+                    } else if (button.text == "AC") {
+                        input = "";
+                        resultText = "0";
+                    } else if (button.text == "=") {
+                        resultText = calculate(input.c_str());
+                    } else {
+                        input += button.text;
+                    }
+                }
             }
         }
+
+        wasMousePressed = isMousePressed;
+
         // Clear the screen
         SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
         SDL_RenderClear(renderer);
-        	
-        //  Render the Scene
-        renderButton(buttons);
-        renderResultText(resultText);
 
+        // Render the buttons and result text
+        renderButtons(buttons);
+        renderResult(buttons[0].text, resultText);
+
+        // Update the window
         SDL_RenderPresent(renderer);
     }
-    
-    #pragma region Quit
+
+    // Clean up resources
     TTF_CloseFont(font);
-    TTF_CloseFont(bigFont);
     TTF_CloseFont(smallFont);
+    TTF_CloseFont(bigFont);
     TTF_Quit();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
-    #pragma endregion
 }
-void renderButton(std::vector<Button>& buttons) {
-    // get mouse state
-    int x, y;
-    Uint32 mouseState = SDL_GetMouseState(&x, &y);
+
+// Function to render buttons on the screen
+void renderButtons(std::vector<Button>& buttons) {
+    int mx, my;
+    Uint32 mouseState = SDL_GetMouseState(&mx, &my);
     bool isMousePressed = mouseState & SDL_BUTTON(SDL_BUTTON_LEFT);
 
-    for (Button& button : buttons) {
-        // Check if the mouse is inside the button rect
-        if (x >= button.rect.x && x < button.rect.x + button.rect.w &&
-            y >= button.rect.y && y < button.rect.y + button.rect.h) {
-            // Change color to highlight
-            SDL_SetRenderDrawColor(renderer, button.colorHighlight.r, button.colorHighlight.g, button.colorHighlight.b, button.colorHighlight.a);
-    
-            // Handle "just pressed" logic
-            if (isMousePressed && !wasMousePressed) {
-                if (button.text == "=") {
-                    resultText = calculate(buttons[0].text.c_str()); // Call the calculate function from Model.c
-                    
-                } else if (button.text == "⌫") {
-                    // Handle delete logic
-                    if (!buttons[0].text.empty()) {
-                        // Remove the last character
-                        buttons[0].text.pop_back(); 
-                    }
-                } else if (button.text != buttons[0].text) {
-                    // Add the button's text to the input
-                    buttons[0].text += button.text; 
-                }
-            }
-        } else {
-            // Reset color to default
-            SDL_SetRenderDrawColor(renderer, button.color.r, button.color.g, button.color.b, button.color.a);
-        }
-        // Render the button
-        SDL_RenderFillRect(renderer, &button.rect); 
+    // Loop through and render each button
+    for (auto& button : buttons) {
+        if (&button == &buttons[0]) continue;
 
+        SDL_Color color = button.color;
 
-        if (button.text == buttons[0].text) {
-            // Render the calculation text
-            renderCalculationText(button); 
+        // Highlight button if mouse is hovering over it
+        if (mx >= button.rect.x && mx <= button.rect.x + button.rect.w &&
+            my >= button.rect.y && my <= button.rect.y + button.rect.h) {
+            color = button.highlightColor;
         }
-        else {
-            // Render the button text
-            renderText(button); 
-        }
+
+        // Draw rounded button background
+        int radius = 12;
+        roundedBoxRGBA(
+            renderer,
+            button.rect.x,
+            button.rect.y,
+            button.rect.x + button.rect.w,
+            button.rect.y + button.rect.h,
+            radius,
+            color.r, color.g, color.b, color.a
+        );
+
+        // Render button text
+        renderText(button);
     }
-
-    wasMousePressed = isMousePressed;
 }
 
-void renderText(Button& button){
+// Function to render text on buttons
+void renderText(Button& button) {
     if (!button.text.empty()) {
-        // create surface with text
-        SDL_Surface* textSurface = TTF_RenderUTF8_Blended(font, button.text.c_str(), button.textColor);
-        if (textSurface) {
-            // create texture from surface
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            // create rect with surface dimensions
+        SDL_Surface* surface = TTF_RenderUTF8_Blended(font, button.text.c_str(), button.textColor);
+        if (surface) {
+            SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
             SDL_Rect textRect = {
-                button.rect.x + (button.rect.w - textSurface->w) / 2,
-                button.rect.y + (button.rect.h - textSurface->h) / 2,
-                textSurface->w,
-                textSurface->h
+                button.rect.x + (button.rect.w - surface->w) / 2,
+                button.rect.y + (button.rect.h - surface->h) / 2,
+                surface->w, surface->h
             };
-            // Render the button text
-            SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-            // Free the surface and texture
-            SDL_FreeSurface(textSurface);
-            SDL_DestroyTexture(textTexture);
-        } else {
-            std::cerr << "Failed to render text: " << TTF_GetError() << std::endl;
+            SDL_RenderCopy(renderer, texture, NULL, &textRect);
+            SDL_FreeSurface(surface);
+            SDL_DestroyTexture(texture);
         }
     }
 }
 
-void renderCalculationText(Button& button) {
-    SDL_Color textColor = { 235, 235, 235, 220 };
+// Function to render the current input and result on the screen
+void renderResult(const std::string& input, const std::string& result) {
+    SDL_Color inputColor = { 200, 200, 200, 200 };
+    SDL_Color resultColor = { 255, 255, 255, 255 };
 
-    // create surface with text
-    SDL_Surface* textSurface = TTF_RenderUTF8_Blended(smallFont, button.text.c_str(), textColor);
-    if (textSurface) {
-        // create texture from surface
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        // create rect with surface dimensions
-        SDL_Rect textRect = { width - 25, (height / 6)/8, textSurface->w, textSurface->h };  // Position the result text at the top right corner
-        textRect.x -= textRect.w;  // Adjust x position to align right
-        // Render the button text
-        SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-        // Free the surface and texture
-        SDL_FreeSurface(textSurface);
-        SDL_DestroyTexture(textTexture);
+    // Render the input string at the top
+    if (!input.empty()) {
+        SDL_Surface* inputSurface = TTF_RenderUTF8_Blended(smallFont, input.c_str(), inputColor);
+        SDL_Texture* inputTexture = SDL_CreateTextureFromSurface(renderer, inputSurface);
+        SDL_Rect inputRect = { width - 20 - inputSurface->w, 20, inputSurface->w, inputSurface->h };
+        SDL_RenderCopy(renderer, inputTexture, NULL, &inputRect);
+        SDL_FreeSurface(inputSurface);
+        SDL_DestroyTexture(inputTexture);
+    }
+
+    // Render the result string below the input
+    if (!result.empty()) {
+        SDL_Surface* resultSurface = TTF_RenderUTF8_Blended(bigFont, result.c_str(), resultColor);
+        SDL_Texture* resultTexture = SDL_CreateTextureFromSurface(renderer, resultSurface);
+        SDL_Rect resultRect = { width - 20 - resultSurface->w, 60, resultSurface->w, resultSurface->h };
+        SDL_RenderCopy(renderer, resultTexture, NULL, &resultRect);
+        SDL_FreeSurface(resultSurface);
+        SDL_DestroyTexture(resultTexture);
     }
 }
-
-void renderResultText(const std::string& result) {
-    SDL_Color textColor = { 255, 255, 255, 255 };
-
-    // create surface with text
-    SDL_Surface* textSurface = TTF_RenderUTF8_Blended(bigFont, result.c_str(), textColor);
-    if (textSurface) {
-        // create texture from surface
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        // create rect with surface dimensions
-        SDL_Rect textRect = { width - 25, (height / 6)/3 + 5, textSurface->w, textSurface->h };  // Position the result text at the top right corner
-        textRect.x -= textRect.w;  // Adjust x position to align right
-        // Render the button text
-        SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-        // Free the surface and texture
-        SDL_FreeSurface(textSurface);
-        SDL_DestroyTexture(textTexture);
-    }
-}
-
